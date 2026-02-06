@@ -15,11 +15,11 @@ jobs:
 
     env:
       # GitHub Secrets for bot login
-      WIKI_USER: ${{ secrets.WIKI_BOT_USERNAME }}
-      WIKI_PASS: ${{ secrets.WIKI_BOT_PASSWORD }}
+      WIKI_USER: ${{ secrets.WIKI_USER }}
+      WIKI_PASS: ${{ secrets.WIKI_PASS }}
 
       # Worklist page
-      WORKLIST_TITLE: "User:YourBot/Worklists/Orphaned_with_2+_backlinks"
+      WORKLIST_TITLE: "User:AsteraBot/Pages to fix"
 
       # JSON file in repo
       QUARRY_JSON_FILE: "quarry-101099-orphaned-articles-with-more-than-two-incoming-links-retest-run1069296 (1).json"
