@@ -44,4 +44,4 @@ jobs:
           if [ "$DRY_RUN" = "true" ]; then
               echo "Running in dry-run mode: will show pages but not edit Wikipedia"
           fi
-          python seed_bot.py
+          python bot.py
