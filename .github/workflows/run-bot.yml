@@ -22,7 +22,7 @@ jobs:
       WORKLIST_TITLE: "User:AsteraBot/Pages to fix"
 
       # JSON file in repo
-      QUARRY_JSON_FILE: "quarry-101099-orphaned-articles-with-more-than-two-incoming-links-retest-run1069296 (1).json"
+      QUARRY_JSON_URL: "https://quarry.wmcloud.org/run/1069502/output/0/json"
 
       # Dry-run toggle (from workflow input)
       DRY_RUN: ${{ github.event.inputs.dry_run }}
