@@ -1,15 +1,12 @@
 import os
-import json
 import requests
 import re
+from datetime import datetime
 
-API_URL = "https://test.wikipedia.org/w/api.php"
+API_URL = "https://simple.wikipedia.org/w/api.php"
 HEADERS = {"User-Agent": "OrphanWorklistSeeder/1.0"}
 
-# Wiki page to edit
 WORKLIST_TITLE = "User:AsteraBot/Pages to fix"
-
-# Quarry JSON output URL
 QUARRY_JSON_URL = "https://quarry.wmcloud.org/run/1069502/output/0/json"
 
 
@@ -17,7 +14,6 @@ def login_and_get_session(username, password):
     session = requests.Session()
     session.headers.update(HEADERS)
 
-    # Get login token
     r1 = session.get(API_URL, params={
         "action": "query",
         "meta": "tokens",
@@ -26,7 +22,6 @@ def login_and_get_session(username, password):
     })
     token = r1.json()["query"]["tokens"]["logintoken"]
 
-    # Login
     r2 = session.post(API_URL, data={
         "action": "login",
         "lgname": username,
@@ -83,54 +78,49 @@ def save_worklist(session, text, title, summary, token):
 
 
 def main():
-    # Credentials from environment
     username = os.getenv("WIKI_USER")
     password = os.getenv("WIKI_PASS")
     if not username or not password:
         raise RuntimeError("Missing WIKI_USER or WIKI_PASS environment variables")
 
-    # Login
     session = login_and_get_session(username, password)
     csrf = get_csrf_token(session)
 
-    # Load Quarry JSON from URL
+    # Load Quarry JSON
     r = requests.get(QUARRY_JSON_URL, headers=HEADERS, timeout=30)
     r.raise_for_status()
     quarry_data = r.json()
 
-    # Extract page titles (first column of each row)
     quarry_pages = [row[0] for row in quarry_data.get("rows", [])]
     print(f"Loaded {len(quarry_pages)} pages from Quarry.")
 
     if not quarry_pages:
-        print("No pages found in Quarry output — exiting.")
+        print("No pages found — exiting.")
         return
 
-    # Fetch current worklist
     current_text = fetch_worklist(session, WORKLIST_TITLE)
 
-    # Extract existing items safely
     current_items = set(
         re.findall(r"^\*\s*\[\[([^\]|]+)", current_text, re.MULTILINE)
     )
 
-    # Determine new pages to add
     new_items = set(quarry_pages) - current_items
     if not new_items:
         print("No new pages to add — worklist is up to date.")
         return
 
-    print(f"Adding {len(new_items)} new pages to worklist.")
+    print(f"Adding {len(new_items)} new pages.")
 
-    # Build new worklist text
     new_lines = "\n".join(f"* [[{title}]]" for title in sorted(new_items))
 
-    if current_text.strip():
-        new_text = current_text.rstrip() + "\n" + new_lines + "\n"
+    # If page is being created, add full timestamp header
+    if not current_text.strip():
+        timestamp = datetime.utcnow().strftime("%B %d, %Y at %H:%M UTC")
+        header = f"'''Last updated:''' {timestamp}\n\n"
+        new_text = header + new_lines + "\n"
     else:
-        new_text = new_lines + "\n"
+        new_text = current_text.rstrip() + "\n" + new_lines + "\n"
 
-    # Save updated worklist
     save_worklist(
         session,
         new_text,
