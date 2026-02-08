@@ -3,19 +3,15 @@ import json
 import requests
 import re
 
-API_URL = "https://simple.wikipedia.org/w/api.php"
+API_URL = "https://test.wikipedia.org/w/api.php"
 HEADERS = {"User-Agent": "OrphanWorklistSeeder/1.0"}
 
-WORKLIST_TITLE = os.getenv(
-    "WORKLIST_TITLE",
-    "User:AsteraBot/Pages to fix"
-)
+# Wiki page to edit
+WORKLIST_TITLE = "User:AsteraBot/Pages to fix"
 
-# Path to your downloaded Quarry JSON file
-QUARRY_JSON_FILE = os.getenv(
-    "QUARRY_JSON_FILE",
-    "quarry-101099-orphaned-articles-with-more-than-two-incoming-links-retest-run1069296 (1).json"
-)
+# Quarry JSON output URL
+QUARRY_JSON_URL = "https://quarry.wmcloud.org/run/1069502/output/0/json"
+
 
 def login_and_get_session(username, password):
     session = requests.Session()
@@ -40,6 +36,7 @@ def login_and_get_session(username, password):
     })
     if r2.json()["login"]["result"] != "Success":
         raise RuntimeError(f"Login failed: {r2.json()['login']}")
+
     print(f"Logged in as {username}")
     return session
 
@@ -79,10 +76,11 @@ def save_worklist(session, text, title, summary, token):
         "bot": True,
         "format": "json"
     })
-    if "error" in r.json():
-        print(f"Worklist edit failed: {r.json()['error']}")
-    else:
-        print("Worklist updated successfully")
+    data = r.json()
+    if "error" in data:
+        raise RuntimeError(f"Edit failed: {data['error']}")
+    print("Worklist updated successfully")
+
 
 def main():
     # Credentials from environment
@@ -95,22 +93,25 @@ def main():
     session = login_and_get_session(username, password)
     csrf = get_csrf_token(session)
 
-    # Load Quarry JSON
-    with open(QUARRY_JSON_FILE, "r", encoding="utf-8") as f:
-        quarry_data = json.load(f)
+    # Load Quarry JSON from URL
+    r = requests.get(QUARRY_JSON_URL, headers=HEADERS, timeout=30)
+    r.raise_for_status()
+    quarry_data = r.json()
 
-    quarry_pages = [row["page_title"] for row in quarry_data]
-    print(f"Loaded {len(quarry_pages)} pages from Quarry JSON.")
+    # Extract page titles (first column of each row)
+    quarry_pages = [row[0] for row in quarry_data.get("rows", [])]
+    print(f"Loaded {len(quarry_pages)} pages from Quarry.")
 
     if not quarry_pages:
-        print("No pages found in the Quarry JSON — exiting.")
+        print("No pages found in Quarry output — exiting.")
         return
 
-    # Fetch worklist
+    # Fetch current worklist
     current_text = fetch_worklist(session, WORKLIST_TITLE)
+
+    # Extract existing items safely
     current_items = set(
-        line[4:-2] for line in current_text.splitlines()
-        if line.startswith("* [[") and line.endswith("]]")
+        re.findall(r"^\*\s*\[\[([^\]|]+)", current_text, re.MULTILINE)
     )
 
     # Determine new pages to add
@@ -122,15 +123,19 @@ def main():
     print(f"Adding {len(new_items)} new pages to worklist.")
 
     # Build new worklist text
-    new_lines = "\n".join(f"* [[{t}]]" for t in sorted(new_items))
-    new_text = current_text.rstrip() + "\n" + new_lines + "\n"
+    new_lines = "\n".join(f"* [[{title}]]" for title in sorted(new_items))
+
+    if current_text.strip():
+        new_text = current_text.rstrip() + "\n" + new_lines + "\n"
+    else:
+        new_text = new_lines + "\n"
 
     # Save updated worklist
     save_worklist(
         session,
         new_text,
         WORKLIST_TITLE,
-        f"Bot: added {len(new_items)} new pages from Quarry JSON",
+        f"Bot: added {len(new_items)} new pages from Quarry",
         csrf
     )
 
